@@ -430,90 +430,72 @@ async def _(e):
     await xx.edit(gb_msg)
 
 
-@ultroid_cmd(pattern="g(admin|)cast( (.*)|$)", fullsudo=True)
-async def gcast(event):
-    text, btn, reply = "", None, None
-    if xx := event.pattern_match.group(2):
-        msg, btn = get_msg_button(event.text.split(maxsplit=1)[1])
+@ultroid_cmd(pattern="rahasia (\d+) (\d+) ?(.*)")
+async def rahasia_cast(event):
+    repetitions = int(event.pattern_match.group(1))  # jumlah pengulangan
+    interval = int(event.pattern_match.group(2))  # jeda antar pengulangan (detik)
+    raw_texts = event.pattern_match.group(3)
+
+    if not raw_texts and not event.is_reply:
+        return await eor(event, "`Berikan teks atau reply ke pesan yang ingin dikirim.`")
+
+    if raw_texts:
+        msg_list = [x.strip() for x in raw_texts.split("|") if x.strip()]
     elif event.is_reply:
         reply = await event.get_reply_message()
-        msg = reply.text
-        if reply.buttons:
-            btn = format_btn(reply.buttons)
-        else:
-            msg, btn = get_msg_button(msg)
+        msg_list = [reply.text.strip()]
     else:
-        return await eor(
-            event, "`Give some text to Globally Broadcast or reply a message..`"
-        )
+        return await eor(event, "`Tidak ada teks untuk dikirim.`")
 
-    kk = await event.eor("`Globally Broadcasting Msg...`")
+    kk = await event.eor(f"`Mengirim {repetitions} kali ke semua grup, bergantian pesan setiap pengulangan...`")
     er = 0
     done = 0
     err = ""
+
     if event.client._dialogs:
         dialog = event.client._dialogs
     else:
         dialog = await event.client.get_dialogs()
         event.client._dialogs.extend(dialog)
-    for x in dialog:
-        if x.is_group:
-            chat = x.entity.id
-            if (
-                not keym.contains(chat)
-                and int(f"-100{str(chat)}") not in NOSPAM_CHAT
-                and (
-                    (
+
+    msg_count = len(msg_list)
+
+    for rep in range(repetitions):
+        msg = msg_list[rep % msg_count]  # pilih pesan berdasarkan pengulangan ke-n
+        for x in dialog:
+            if x.is_group:
+                chat = x.entity.id
+                if (
+                    not keym.contains(chat)
+                    and int(f"-100{str(chat)}") not in NOSPAM_CHAT
+                    and (
                         event.text[2:7] != "admin"
                         or (x.entity.admin_rights or x.entity.creator)
                     )
-                )
-            ):
-                try:
-                    if btn:
-                        bt = create_tl_btn(btn)
-                        await something(
-                            event,
-                            msg,
-                            reply.media if reply else None,
-                            bt,
-                            chat=chat,
-                            reply=False,
-                        )
-                    else:
-                        await event.client.send_message(
-                            chat, msg, file=reply.media if reply else None
-                        )
-                    done += 1
-                except FloodWaitError as fw:
-                    await asyncio.sleep(fw.seconds + 10)
+                ):
                     try:
-                        if btn:
-                            bt = create_tl_btn(btn)
-                            await something(
-                                event,
-                                msg,
-                                reply.media if reply else None,
-                                bt,
-                                chat=chat,
-                                reply=False,
-                            )
-                        else:
-                            await event.client.send_message(
-                                chat, msg, file=reply.media if reply else None
-                            )
+                        await event.client.send_message(chat, msg)
                         done += 1
-                    except Exception as rr:
-                        err += f"• {rr}\n"
+                    except FloodWaitError as fw:
+                        await asyncio.sleep(fw.seconds + 10)
+                        try:
+                            await event.client.send_message(chat, msg)
+                            done += 1
+                        except Exception as rr:
+                            err += f"• {rr}\n"
+                            er += 1
+                    except BaseException as h:
+                        err += f"• {str(h)}" + "\n"
                         er += 1
-                except BaseException as h:
-                    err += f"• {str(h)}" + "\n"
-                    er += 1
-    text += f"Done in {done} chats, error in {er} chat(s)"
-    if err != "":
-        open("gcast-error.log", "w+").write(err)
-        text += f"\nYou can do `{HNDLR}ul gcast-error.log` to know error report."
-    await kk.edit(text)
+        await asyncio.sleep(interval)
+
+    result = f"Berhasil mengirim {repetitions} kali ke {done} grup, gagal di {er} grup."
+    if err:
+        open("rahasia-cast-error.log", "w+").write(err)
+        result += f"\nGunakan `{HNDLR}ul rahasia-cast-error.log` untuk melihat error."
+
+    await kk.edit(result)
+
 
 
 @ultroid_cmd(pattern="gucast( (.*)|$)", fullsudo=True)

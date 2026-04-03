@@ -39,6 +39,9 @@
 import asyncio
 import os
 
+from telethon.tl.functions.channels import JoinChannelRequest
+from telethon.tl.functions.messages import ImportChatInviteRequest
+from telethon.errors import UserAlreadyParticipantError, FloodWaitError
 from telethon.errors.rpcerrorlist import ChatAdminRequiredError, FloodWaitError
 from telethon.tl.functions.channels import EditAdminRequest
 from telethon.tl.functions.contacts import BlockRequest, UnblockRequest
@@ -283,6 +286,90 @@ async def _(e):
                 except BaseException:
                     pass
         await eor(ev, f"Demoted {name.first_name} in Total : {c} {key} chats.")
+
+@ultroid_cmd(pattern="autojoin$")
+async def autojoin(e):
+    await e.eor("🔄 Memulai auto join dari group.txt...")
+
+    # 📂 baca file
+    try:
+        with open("group.txt", "r") as f:
+            groups = [x.strip() for x in f.readlines() if x.strip()]
+    except:
+        return await e.eor("❌ group.txt tidak ditemukan!")
+
+    success = 0
+    failed = 0
+    skipped = 0
+
+    # 🔁 loop semua group
+    for link in groups:
+        while True:
+            try:
+                # 🔗 join private / public
+                if "joinchat" in link or "+" in link:
+                    invite = link.split("/")[-1].replace("+", "")
+                    await e.client(ImportChatInviteRequest(invite))
+                else:
+                    await e.client(JoinChannelRequest(link))
+
+                success += 1
+                await e.edit(f"✅ Join: {link}")
+                await asyncio.sleep(5)
+                break
+
+            # ⚠️ sudah join
+            except UserAlreadyParticipantError:
+                skipped += 1
+                await e.edit(f"⚠️ Sudah join: {link}")
+                await asyncio.sleep(2)
+                break
+
+            # ⏳ flood handling
+            except FloodWaitError as fw:
+                if fw.seconds > 300:
+                    await e.edit(f"⏳ Flood {fw.seconds}s (skip)...")
+                    await asyncio.sleep(5)
+                    break
+                else:
+                    await e.edit(f"⏳ Flood {fw.seconds}s... tunggu")
+                    await asyncio.sleep(fw.seconds)
+
+            # ❌ error lain (ban / link mati / dll)
+            except Exception as er:
+                failed += 1
+                await e.edit(f"❌ Gagal: {link}")
+                await asyncio.sleep(3)
+                break
+
+    # 📊 hasil akhir
+    await e.edit(
+        f"🎉 Selesai!\n\n"
+        f"✅ Success: {success}\n"
+        f"⚠️ Skipped: {skipped}\n"
+        f"❌ Failed: {failed}\n\n"
+        f"⬆️ Updating & Restarting..."
+    )
+
+    await asyncio.sleep(3)
+
+    # 🔄 update repo
+    await bash("git pull")
+
+    # 📦 install dependency
+    await bash("pip3 install -r requirements.txt")
+
+    # ⚠️ optional (biar ga error di beberapa server)
+    try:
+        await bash("pip3 install -r requirements.txt --break-system-packages")
+    except:
+        pass
+
+    # ♻️ restart bot
+    if len(sys.argv) > 1:
+        os.execl(sys.executable, sys.executable, "main.py")
+    else:
+        os.execl(sys.executable, sys.executable, "-m", "pyUltroid")
 
 
 @ultroid_cmd(pattern="ungban( (.*)|$)", fullsudo=True)

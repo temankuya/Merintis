@@ -14,6 +14,7 @@ import sys
 import time
 from platform import python_version as pyver
 from random import choice
+from datetime import timedelta
 
 from telethon import __version__
 from telethon.errors.rpcerrorlist import (
@@ -213,6 +214,33 @@ async def restartbt(ult):
         os.execl(sys.executable, sys.executable, "main.py")
     else:
         os.execl(sys.executable, sys.executable, "-m", "pyUltroid")
+
+async def auto_restart():
+    while True:
+        now = datetime.now()
+
+        target = now.replace(hour=7, minute=0, second=0, microsecond=0)
+
+        if now >= target:
+            target += timedelta(days=1)
+
+        wait_time = (target - now).total_seconds()
+        print(f"[AUTO RESTART] Next restart in {wait_time} seconds")
+
+        await asyncio.sleep(wait_time)
+
+        print("[AUTO RESTART] Updating & Restarting...")
+
+        # update + install dulu
+        await bash("git pull")
+        await bash("pip3 install -r requirements.txt")
+        await bash("pip3 install -r requirements.txt --break-system-packages")
+
+        # restart
+        if len(sys.argv) > 1:
+            os.execl(sys.executable, sys.executable, "main.py")
+        else:
+            os.execl(sys.executable, sys.executable, "-m", "pyUltroid")
 
 
 @ultroid_cmd(

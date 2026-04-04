@@ -9,6 +9,11 @@ from . import get_help
 
 __doc__ = get_help("help_bot")
 
+import asyncio
+import pytz
+from pyUltroid import ultroid_bot
+from pyUltroid.fns.helper import bash
+from datetime import datetime
 import os
 import sys
 import time
@@ -216,31 +221,31 @@ async def restartbt(ult):
         os.execl(sys.executable, sys.executable, "-m", "pyUltroid")
 
 async def auto_restart():
+    tz = pytz.timezone("Asia/Jakarta")
+
     while True:
-        now = datetime.now()
+        now = datetime.now(tz)
 
-        target = now.replace(hour=7, minute=0, second=0, microsecond=0)
+        # cek jam 07:00
+        if now.hour == 7 and now.minute == 0:
+            print("[AUTO RESTART] Updating & Restarting...")
 
-        if now >= target:
-            target += timedelta(days=1)
+            await bash("git pull")
+            await bash("pip3 install -r requirements.txt")
 
-        wait_time = (target - now).total_seconds()
-        print(f"[AUTO RESTART] Next restart in {wait_time} seconds")
+            # restart pakai cara kamu
+            if len(sys.argv) > 1:
+                os.execl(sys.executable, sys.executable, "main.py")
+            else:
+                os.execl(sys.executable, sys.executable, "-m", "pyUltroid")
 
-        await asyncio.sleep(wait_time)
+            await asyncio.sleep(60)  # anti loop spam
 
-        print("[AUTO RESTART] Updating & Restarting...")
+        await asyncio.sleep(30)
 
-        # update + install dulu
-        await bash("git pull")
-        await bash("pip3 install -r requirements.txt")
-        await bash("pip3 install -r requirements.txt --break-system-packages")
-
-        # restart
-        if len(sys.argv) > 1:
-            os.execl(sys.executable, sys.executable, "main.py")
-        else:
-            os.execl(sys.executable, sys.executable, "-m", "pyUltroid")
+@ultroid_bot.on_startup
+async def start_auto_restart():
+    asyncio.create_task(auto_restart())
 
 
 @ultroid_cmd(
